@@ -50,18 +50,20 @@ class Player:
 class Server:
     
     def __init__(self):
-        self.players_sockets = {}
+        self.players_sockets = []
+        self.connections_to_close = []
         self.should_stop_looking = False
 
     def server_start_message(self, ip):
-        print(f"Server started, listerning on IP address {ip}\n")
+        actual_ip = '127.0.0.1' if ip == '0.0.0.0' else ip
+        print(f"Server started, listerning on IP address {actual_ip}\n")
 
     def get_game_start_message(self):
         welcome = "Welcome to Keyboard Spamming Battle Royale.\n"
         group_announcement = ""
         for i in range(NUMBER_OF_TEAMS):
             group_announcement += f"Group {i + 1}:\n==\n"
-            for p in self.players_sockets.values():
+            for p in self.players_sockets:
                 if p.get_team() == i + 1:
                     group_announcement += p.get_name()
             group_announcement += "\n"
@@ -73,17 +75,16 @@ class Server:
         message = struct.pack('I B H', MAGIC_COOKIE, MESSAGE_TYPE, tcp_sock.getsockname()[1]) #getsockname[1] gets the port
         
         # Endlessly send a broadcast every @interval seconds
-        broadcast_ip = str(ipaddress.ip_network(get_if_addr(network_type) + '/24').broadcast_address)
+        broadcast_ip = 'localhost' if network_type == '0.0.0.0' else str(ipaddress.ip_network(get_if_addr(network_type) + '/24').broadcast_address)
 
         for i in range(round(TIMER_LENGTH/INTERVAL)):
             sock.sendto(message, (broadcast_ip, UDP_PORT))
             time.sleep(INTERVAL)
         sock.close()
 
-    def connect_with_client(self, sock):
-        while not self.should_stop_looking:
+    def connect_with_specific_client(self, conn, addr):
+        try:
             new_player_name = ""
-            conn, addr = sock.accept()
             if self.should_stop_looking:
                 while True:
                     new_player_name += conn.recv(BUFFER_SIZE)
@@ -94,7 +95,16 @@ class Server:
                     new_player_name = new_player_name[:-1] # remove the \n
                     break
                 new_player = Player(conn, new_player_name)
-                self.players_sockets[addr] = new_player
+                self.players_sockets.append(new_player) # the internet says append is threadsafe
+        except:
+            pass
+
+    def connect_with_client(self, sock):
+        while not self.should_stop_looking:
+            conn, addr = sock.accept()
+            self.connections_to_close.append(conn)
+            connect_with_client_thread = threading.Thread(target = self.connect_with_specific_client, args =(conn, addr,), daemon = True)
+            connect_with_client_thread.start()
         
 
     def game_over(self):
@@ -102,7 +112,7 @@ class Server:
             print (f"No players played in this round\n\n")
             return
         scores = [0,0]
-        for p in self.players_sockets.values():
+        for p in self.players_sockets:
             scores[p.get_team() - 1] += len(p.get_typed())
         
         winners = 0
@@ -115,19 +125,20 @@ class Server:
                 winners = -1
         
         winners_names = ""
-        for p in self.players_sockets.values():
+        for p in self.players_sockets:
             if p.get_team() - 1 == winners:
                 winners_names += p.get_name() + "\n"
         
         print (f"Game over!\n Group 1 typed in {scores[0]}. Group 2 typed in {scores[1]} characters.\n Group {winners + 1} wins!\n\n Congratulations to the winners:\n==\n{winners_names}")
 
     def close_all_connections(self):
-        for conn in self.players_sockets.values():
+        for conn in self.connections_to_close:
             try:
                 conn.get_sock().close()
             except:
                 pass
-        self.players_sockets = {}
+        self.connections_to_close = []
+        self.players_sockets = []
 
     def pre_game(self, network_type, sock):
         connect_with_client_thread = threading.Thread(target = self.connect_with_client, args =(sock,), daemon = True)
@@ -146,9 +157,9 @@ class Server:
         except:
             print (f"{player.get_name()} disconnected. Don't worry, their score will still count.")
 
-    def game_time(self):# TODO
+    def game_time(self):
         message = self.get_game_start_message()
-        for player in self.players_sockets.values():
+        for player in self.players_sockets:
             player_thread = threading.Thread(target = self.client_thread, args = (player,message,), daemon = True)
             player_thread.start()
         time.sleep(TIMER_LENGTH)
@@ -164,7 +175,7 @@ class Server:
         return data
 
     def log_statistics(self):
-        if self.players_sockets == {}:
+        if self.players_sockets == []:
             return
         typed = ""
         high_score = -1
@@ -174,7 +185,7 @@ class Server:
             data = json.load(file)
             if data == {}:
                 data = self.get_initial_json()
-            for player in self.players_sockets.values():
+            for player in self.players_sockets:
                 typed += player.get_typed()
                 high_score = max(high_score, len(player.get_typed()))
                 player_name_list += [player.get_name()]
@@ -229,6 +240,7 @@ class Server:
 
 # TODO implement try catches
 server = Server()
-server_type = input("Would you like to use the dev channel or test channel? (DEV/test)")
-server_ip = 'eth2' if server_type.lower() == 'test' else 'eth1'
+server_type = input("Would you like to use the dev channel, test channel or localhost? (DEV/test/localhost)")
+
+server_ip = 'eth2' if server_type.lower() == 'test' else 'localhost' if server_type.lower() == 'localhost' else 'eth1'
 server.main_loop(get_if_addr(server_ip))
