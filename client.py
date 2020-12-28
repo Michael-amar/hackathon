@@ -9,6 +9,18 @@ import tty
 BroadcastlistenPort = 13117
 TeamName = "Team A"
 messageSize = 7
+magicCookie = b'\xfe\xed\xbe\xef'
+offerType = b'\x02'
+udpRcvWindow = 2048 
+
+def cookieBytes(message):
+    return message[:4]
+
+def typeBytes(message):
+    return message[4:5]
+
+def portBytes(message):
+    return message[5:]
 
 def get_network_ip():
     while True:
@@ -23,15 +35,15 @@ def get_network_ip():
             print("invalid input")
     return network
 
-def get_offers():
+def get_offers(ip):
     udpSocket = socket.socket(socket.AF_INET,socket.SOCK_DGRAM) #check for problems with AF_INET
     udpSocket.bind(('',BroadcastlistenPort)) #check for problems with ''
     print("Client started, listening for offer requests...")
     while True: #wait for offers
-        message, (serverIp,_) = udpSocket.recvfrom(2048) # check for problems with 2048
-        print((message.hex()))
-        if len(message)==messageSize and message[:5] == b'\xfe\xed\xbe\xef\x02':
-            serverTcpPort = int.from_bytes(message[5:],"big")
+        message, (serverIp,_) = udpSocket.recvfrom(udpRcvWindow) # check for problems with 2048
+        print((message.hex()) + "=" + str(message))
+        if (len(message)==messageSize) and (cookieBytes(message) == magicCookie) and (typeBytes(message)==offerType) :
+            serverTcpPort = int.from_bytes(portBytes(message),"big")
             break
     udpSocket.close()
     return (serverIp,serverTcpPort)
@@ -45,7 +57,7 @@ class GameSession(asyncore.dispatcher):
         try:
             self.connect((serverIp,serverTcpPort))
             print("connected")
-            self.buffer=""
+            self.buffer=[]
             print("initialized buffer")
             self.send(TeamName+"\n")
             print("sent team name")
@@ -89,9 +101,11 @@ class GameSession(asyncore.dispatcher):
         asyncore.loop() #check set timeout for 10~12 seconds?
 
 # main loop
+print ("my ip1:" + str(get_if_addr('eth1') + "\nmy ip2:" + str(get_if_addr('eth2'))))
 my_ip = get_network_ip()
 while True:
-    (serverIp,serverTcpPort) = get_offers()
+    (serverIp,serverTcpPort) = get_offers(my_ip)
+    print(f"Recieved offer from {serverIp}, attempting to connect...")
     gameSession = GameSession(serverIp,serverTcpPort)
     gameSession.start_game()
 
