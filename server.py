@@ -1,3 +1,4 @@
+import os
 import sys
 import json
 import time
@@ -15,11 +16,12 @@ TIMER_LENGTH = 10 #10 seconds
 MAGIC_COOKIE = 0xfeedbeef
 MESSAGE_TYPE = 0x2
 NUMBER_OF_TEAMS = 2
-UDP_PORT = 15183
+UDP_PORT = 15189
 # UDP_PORT = 13117
 INTERVAL = 1
 BUFFER_SIZE = 4096
 SURPRISE = "\n  $$$$               $$$$\n $    $             $    $\n$    $              $     $\n$    $               $    $\n$    $$$$$$$$$$$$$$$$$    $\n$    $$$$$$$$$$$$$$$$$    $\n$    $$$$$$$$$$$$$$$$$$   $\n $   $$$$$$$$$$$$$$$$$$  $\n $   $$$$$$$$$$$$$$$$$$  $\n  $  $$$$$$$$$$$$$$$$$$ $\n   $ $$$$$$$$$$$$$$$$$ $\n    $$$$$$$$$$$$$$$$$$$\n     $$$$$$$$$$$$$$$$$\n      $$$$$$$$$$$$$$$\n       $$$$$$$$$$$$$\n        $$$$$$$$$$$\n         $$$$$$$$$\n          $$$$$$$\n           $$$$$\n       $$$$$$$$$$$$$"
+LOGO = "  ______ _       _     _   _ \n |  ____(_)     | |   | | | |\n | |__   _  __ _| |__ | |_| |\n |  __| | |/ _` | '_ \| __| |\n | |    | | (_| | | | | |_|_|\n |_|    |_|\__, |_| |_|\__(_)\n            __/ |            \n           |___/             "
 # End of global final variables
 
 # temp values for test
@@ -96,13 +98,13 @@ class Server:
         self.connections_to_close = []
         self.should_stop_looking = False
         self.should_stop_playing = False
+        self.data = {}
 
     def server_start_message(self, ip):
         actual_ip = '127.0.0.1' if ip == '0.0.0.0' else ip
         nice_print(f"Server started, listerning on IP address {actual_ip}\n")
 
     def get_game_start_message(self):
-        welcome = "Welcome to Keyboard Spamming Battle Royale.\n"
         group_announcement = ""
         for i in range(1, NUMBER_OF_TEAMS + 1):
             group_announcement += f"Group {i}:\n==\n"
@@ -112,7 +114,7 @@ class Server:
                     group_announcement += "\n"
             group_announcement += "\n"
         game_start_accounement = "Start pressing keys on your keyboard as fast as you can!"
-        return welcome + group_announcement + game_start_accounement
+        return "\033[38;5;27m" + LOGO + "\n\n\033[38;5;208m" + group_announcement + game_start_accounement
 
     def offer(self, network_type, tcp_sock):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
@@ -125,7 +127,8 @@ class Server:
         nice_print("Broadcasting on " + broadcast_ip)
         nice_print("Registration ends in:")
         for i in range(1, TIMER_LENGTH + 1):
-            sock.sendto(message, (broadcast_ip, UDP_PORT))
+            # sock.sendto(message, (broadcast_ip, UDP_PORT))
+            sock.sendto(message, ('localhost', UDP_PORT))
             nice_print(str(TIMER_LENGTH - i))
             time.sleep(INTERVAL)
         nice_print("\n")
@@ -190,11 +193,11 @@ class Server:
         for p in self.players_sockets:
             if p.get_team() - 1 == winners:
                 winners_names += p.get_name() + "\n"
-        win_message = f"{SURPRISE}\n\nGame over!\nGroup 1 typed in {scores[0]}. Group 2 typed in {scores[1]} characters.\n"
+        win_message = f"\033[38;5;11m{SURPRISE}\n\033[38;5;27m\nGame over!\nGroup 1 typed in {scores[0]}. Group 2 typed in {scores[1]} characters.\n"
         if winners == -1:
             win_message += "Its a tie!"
         else:
-            win_message += f"Group {winners + 1} wins!\n\nGG all, and congratulations to the winners:\n==\n{winners_names}"
+            win_message += f"Group {winners + 1} wins!\n\nGG all, winner winner chicken dinner for:\n==\n{winners_names}"
         nice_print (win_message)
         self.send_win(win_message)
 
@@ -226,7 +229,7 @@ class Server:
             typed = ""
             while not self.should_stop_playing:
                 typed = (conn.recv(BUFFER_SIZE)).decode()
-                if not self.should_stop_playing:
+                if not self.should_stop_playing and not typed == "":
                     nice_print(f"received {typed} from {player.get_name()}")
                     player.add_typed(typed)
         except:
@@ -246,59 +249,50 @@ class Server:
         for player in self.players_sockets:
             player_thread = threading.Thread(target = self.client_thread, args = (player,message,), daemon = True)
             player_thread.start()
-        nice_print("The game started! It will end in:")
+        nice_print(f"{LOGO}\nThe game started! It will end in:")
         for i in range (1, TIMER_LENGTH + 1):
             nice_print(TIMER_LENGTH - i)
             time.sleep(1)
         self.should_stop_playing = True
 
 
-    def get_initial_json(self):
+    def initialize_data(self):
         typed = dict( (key, 0) for key in string.printable) # put 0 for each letter
         high_score = 0
         group_with_best_name = ""
-        data = {}
-        data["typed"] = typed
-        data["high_score"] = high_score
-        data["group_with_best_name"] = group_with_best_name
-        return data
+        self.data = {}
+        self.data["typed"] = typed
+        self.data["high_score"] = high_score
+        self.data["group_with_best_name"] = group_with_best_name
 
     def log_statistics(self):
-        if self.players_sockets == []:
-            return
-        typed = ""
-        high_score = 0
         try:
-            with open('log.json', "a+") as file:
-                try:
-                    data = json.load(file)
-                except:
-                    data = self.get_initial_json()
-                for player in self.players_sockets:
-                    typed += player.get_typed()
-                    high_score = max(len(player.get_typed()), high_score)
-                for c in typed:
-                    data["typed"][c] += 1
-                data["high_score"] = max(high_score, data["high_score"])
-                data["group_with_best_name"] = random.choice([(random.choice(self.players_sockets).get_name())] + [data["group_with_best_name"]])
-                file.seek(0)
-                json.dump(data, file)
-                file.truncate()
-                file.close()
+            if self.players_sockets == []:
+                return
+            if not self.data:
+                self.initialize_data()
+            typed = ""
+            high_score = 0
+            for player in self.players_sockets:
+                typed += player.get_typed()
+                high_score = max(len(player.get_typed()), high_score)
+            for c in typed:
+                self.data["typed"][c] += 1
+            self.data["high_score"] = max(high_score, self.data["high_score"])
+            self.data["group_with_best_name"] = random.choice(self.players_sockets).get_name()
         except:
-            nice_print("Failed to log the results")
+            pass
             
     def print_statistics(self):
         try:
-            with open('log.json', "r") as file:
-                data = json.load(file)
-                group_with_best_name = data["group_with_best_name"]
-                high_score = data["high_score"]
-                most_typed_char = max(data["typed"].items(), key=operator.itemgetter(1))[0]
-                nice_print(f"Team with the best name: {group_with_best_name}")
-                nice_print(f"Highest score ever for a single team: {high_score}")
-                nice_print(f"Most typed character: {most_typed_char}")
-                file.close()
+            group_with_best_name = self.data["group_with_best_name"]
+            high_score = self.data["high_score"]
+            most_typed_char = max(self.data["typed"].items(), key=operator.itemgetter(1))[0]
+            print("")
+            nice_print(f"Team with the best name: {group_with_best_name}")
+            nice_print(f"Highest score ever for a single team: {high_score}")
+            nice_print(f"Most typed character: {most_typed_char}")
+            print("")
         except:
             pass
         
@@ -323,6 +317,7 @@ class Server:
         except:
             nice_print("\n\nServer closed. gg g2g noobs")
             try:
+                self.close_all_connections()
                 sock.close()
             except:
                 pass
@@ -333,4 +328,5 @@ server_type = input("Would you like to use the dev channel or test channel? (DEV
 
 server_ip = 'eth2' if server_type.lower() == 'test' else 'eth1'
 # nice_print(get_if_addr(server_ip))
+os.system('cls' if os.name == 'nt' else 'clear')
 server.main_loop(get_if_addr(server_ip))

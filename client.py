@@ -9,8 +9,8 @@ import struct
 import time
 
 # BroadcastlistenPort = 13117
-BroadcastlistenPort = 15183
-TeamName = "DNAce"
+BroadcastlistenPort = 15189
+TeamName = "DNAce Servers"
 formatMessageSize = 7
 magicCookieBigEndian = b'\xfe\xed\xbe\xef'
 magicCookeLittleEndian = b'\xef\xbe\xed\xfe'
@@ -42,9 +42,13 @@ def color_gen():
         yield
 
 def reset_color():
-    print("\033[0m")
+    print("\033[0m",end="\n")
+    sys.stdout.flush()
 
-        
+def recieved_msg_color():
+    print("\033[38;5;93m",end="\n") #purple text
+    sys.stdout.flush()
+
 def get_network_ip():
     while True:
         try:
@@ -107,9 +111,11 @@ class GameSession(asyncore.dispatcher):
             self.buffer=bytes()
             # break
         except:
+            self.socket.close()
             e = sys.exc_info()[0]
             print(e)
             print("failed to connect to server")
+        
 
     def handle_connect(self):
         pass
@@ -121,12 +127,15 @@ class GameSession(asyncore.dispatcher):
         return sys.stdin.read(1)  
 
     def handle_close(self):
-        print("connection closed!")
         self.close()
     
     def handle_read(self):
+        recieved_msg_color()
+        data = self.recv(tcpRcvWindow)
+        if not data:
+            return
+        print (data.decode(),end='')
         reset_color()
-        print (self.recv(tcpRcvWindow).decode())
 
     def handle_write(self):
         c = self.get_char()
@@ -139,21 +148,27 @@ class GameSession(asyncore.dispatcher):
         return self.pressed_key()
 
     def start_game(self):
-        asyncore.loop(timeout=0.001) 
+        asyncore.loop(timeout=0.01) 
 
 
 
 # serverIp,serverTcpPort = get_offers(get_network_ip())
 while True:
     serverIp,serverTcpPort = get_offers("fake ip")
-    time.sleep(2)
-    gameSession = GameSession(serverIp,serverTcpPort)
-    try:
-        old_settings = termios.tcgetattr(sys.stdin)
-        move_to_single_char_mode()
-        gameSession.start_game()
-    finally:
-        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
-        gameSession.close()
+    failed_to_connect = False
+    for i in range(0,3): #try to connect 3 times at most
+        try:
+            gameSession = GameSession(serverIp,serverTcpPort)
+            break
+        except:
+            failed_to_connect = True
+    if not failed_to_connect:
+        try:
+            old_settings = termios.tcgetattr(sys.stdin)
+            move_to_single_char_mode()
+            gameSession.start_game()
+        finally:
+            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+            gameSession.close()
 
 

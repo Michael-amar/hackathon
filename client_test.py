@@ -8,10 +8,12 @@ import tty
 import struct
 import time
 
-BroadcastlistenPort = 13117
-TeamName = "DNAce"
+# BroadcastlistenPort = 13117
+BroadcastlistenPort = 15189
+TeamName = "new name for noobs"
 formatMessageSize = 7
-magicCookie = b'\xfe\xed\xbe\xef'
+magicCookieBigEndian = b'\xfe\xed\xbe\xef'
+magicCookeLittleEndian = b'\xef\xbe\xed\xfe'
 offerType = b'\x02'
 udpRcvWindow = 2048 
 tcpRcvWindow = 2048
@@ -40,9 +42,13 @@ def color_gen():
         yield
 
 def reset_color():
-    print("\033[0m")
+    print("\033[0m",end="\n")
+    sys.stdout.flush()
 
-        
+def recieved_msg_color():
+    print("\033[38;5;93m",end="\n") #purple text
+    sys.stdout.flush()
+
 def get_network_ip():
     while True:
         try:
@@ -64,12 +70,13 @@ def move_to_single_char_mode():
 
 def verify_msg_format(msg,mode):
     if len(msg) == formatMessageSize:
-        cookie,typ,_ = struct.unpack('=IbH',msg)
         if mode == LittleEndian:
-            if (cookie == int.from_bytes(magicCookie,"little")) and (typ==int.from_bytes(offerType,"little")) :
+            cookie,typ,_ = struct.unpack('<4sbH',msg)
+            if (cookie == magicCookeLittleEndian) and (typ==int.from_bytes(offerType,"little")) :
                 return True
         elif mode == BigEndian:
-            if (cookie == int.from_bytes(magicCookie,"big")) and (typ==int.from_bytes(offerType,"big")) :
+            cookie,typ,_ = struct.unpack('>4sbH',msg)
+            if (cookie == magicCookieBigEndian) and (typ==int.from_bytes(offerType,"big")) :
                 return True
     return False
 
@@ -81,15 +88,13 @@ def get_offers(ip):
     print("Client started, listening for offer requests...")
     while True: #wait for offers
         message, (serverIp,_) = udpSocket.recvfrom(udpRcvWindow) # check for problems with 2048
-        print("received message:" + (message.hex()) + "=" + str(message))
         if (verify_msg_format(message,LittleEndian)):
-            serverTcpPort = message[5:]
+            _,_,serverTcpPort = struct.unpack('<4sbH',message)
             break
         elif (verify_msg_format(message,BigEndian)):
-            _,_,serverTcpPort = struct.unpack('=IbH',message)
+            _,_,serverTcpPort = struct.unpack('>4sbH',message)
             break
     udpSocket.close()
-    print("received tcp port number:" + str(serverTcpPort))
     return (serverIp,serverTcpPort)
 
 class GameSession(asyncore.dispatcher):
@@ -101,6 +106,7 @@ class GameSession(asyncore.dispatcher):
         # while True:
         try:
             self.connect((serverIp,serverTcpPort))
+            print("connected, game starts in few seconds...")
             self.send((TeamName+"\n").encode())
             self.buffer=bytes()
             # break
@@ -108,6 +114,7 @@ class GameSession(asyncore.dispatcher):
             e = sys.exc_info()[0]
             print(e)
             print("failed to connect to server")
+        
 
     def handle_connect(self):
         pass
@@ -119,12 +126,13 @@ class GameSession(asyncore.dispatcher):
         return sys.stdin.read(1)  
 
     def handle_close(self):
-        print("connection closed!")
         self.close()
     
     def handle_read(self):
+        recieved_msg_color()
+        print (self.recv(tcpRcvWindow).decode(),end='')
+        self.buffer
         reset_color()
-        print (self.recv(tcpRcvWindow).decode())
 
     def handle_write(self):
         c = self.get_char()
@@ -144,7 +152,6 @@ class GameSession(asyncore.dispatcher):
 # serverIp,serverTcpPort = get_offers(get_network_ip())
 while True:
     serverIp,serverTcpPort = get_offers("fake ip")
-    time.sleep(2)
     gameSession = GameSession(serverIp,serverTcpPort)
     try:
         old_settings = termios.tcgetattr(sys.stdin)
