@@ -118,11 +118,11 @@ class Server:
         message = struct.pack('=IbH', MAGIC_COOKIE, MESSAGE_TYPE, tcp_sock.getsockname()[1]) #getsockname[1] gets the port
         # nice_print(str(message))
         # Endlessly send a broadcast every @interval seconds
-        broadcast_ip = str(ipaddress.ip_network(network_type + '/24', False).broadcast_address)
+        broadcast_ip = str(ipaddress.ip_network(network_type + '/16', False).broadcast_address)
         nice_print("Broadcasting on " + broadcast_ip)
         nice_print("Registration ends in:")
         for i in range(1, TIMER_LENGTH + 1):
-            sock.sendto(message, ('localhost', UDP_PORT))
+            sock.sendto(message, (broadcast_ip, UDP_PORT))
             nice_print(str(TIMER_LENGTH - i))
             time.sleep(INTERVAL)
         nice_print("\n")
@@ -145,18 +145,26 @@ class Server:
                 self.players_sockets.append(new_player) # the internet says append is threadsafe
                 nice_print(new_player_name + " joined the fight!")
         except:
-            e = sys.exc_info()[0]
-            nice_print(e)
             pass
 
 
     def connect_with_client(self, sock):
-        while not self.should_stop_looking:
-            conn, addr = sock.accept()
-            self.connections_to_close.append(conn)
-            connect_with_client_thread = threading.Thread(target = self.connect_with_specific_client, args =(conn, addr,), daemon = True)
-            connect_with_client_thread.start()
+        try:
+            while not self.should_stop_looking:
+                conn, addr = sock.accept()
+                self.connections_to_close.append(conn)
+                connect_with_client_thread = threading.Thread(target = self.connect_with_specific_client, args =(conn, addr,), daemon = True)
+                connect_with_client_thread.start()
+        except:
+            pass
         
+    def send_win(self, message):
+        for p in self.players_sockets:
+            try:
+                conn = p.get_sock()
+                conn.sendall(message.encode())
+            except:
+                pass
 
     def game_over(self):
         if not self.players_sockets: #if no players connected
@@ -179,8 +187,13 @@ class Server:
         for p in self.players_sockets:
             if p.get_team() - 1 == winners:
                 winners_names += p.get_name() + "\n"
-        
-        nice_print (f"Game over!\n Group 1 typed in {scores[0]}. Group 2 typed in {scores[1]} characters.\n Group {winners + 1} wins!\n\n Congratulations to the winners:\n==\n{winners_names}")
+        win_message = f"Game over!\nGroup 1 typed in {scores[0]}. Group 2 typed in {scores[1]} characters.\n"
+        if winners == -1:
+            win_message += "Its a tie!"
+        else:
+            win_message += f"Group {winners + 1} wins!\n\nGG all, and congratulations to the winners:\n==\n{winners_names}"
+        nice_print (win_message)
+        self.send_win(win_message)
 
     def close_all_connections(self):
         for conn in self.connections_to_close:
@@ -206,16 +219,17 @@ class Server:
     def client_thread(self, player, message):
         try:
             conn = player.get_sock()
+            conn.setblocking(0)
+            conn.recv(BUFFER_SIZE) #clear the buffer to stop cheaters!
+            conn.setblocking(1) 
             conn.sendall(message.encode())
             typed = ""
             while not self.should_stop_playing:
                 typed = (conn.recv(BUFFER_SIZE)).decode()
                 if not self.should_stop_playing:
-                    nice_print(f"received {typed}")
+                    nice_print(f"received {typed} from {player.get_name()}")
                     player.add_typed(typed)
         except:
-            e = sys.exc_info()[0]
-            nice_print(e)
             nice_print (f"{player.get_name()} disconnected. Don't worry, their score will still count.")
 
     def shuffle_teams(self):
@@ -245,7 +259,7 @@ class Server:
         group_with_best_name = ""
         data = {}
         data["typed"] = typed
-        # data["high_score"] = high_score
+        data["high_score"] = high_score
         data["group_with_best_name"] = group_with_best_name
         return data
 
@@ -263,20 +277,16 @@ class Server:
                 data = self.get_initial_json()
             for player in self.players_sockets:
                 typed += player.get_typed()
-                # high_score = max(len(player.get_typed()), high_score)
-                print("score: " + high_score)
-            print("after first for")
+                high_score = max(len(player.get_typed()), high_score)
             for c in typed:
                 data["typed"][c] += 1
-            # data["high_score"] = max(high_score, data["high_score"])
+            data["high_score"] = max(high_score, data["high_score"])
             data["group_with_best_name"] = random.choice([(random.choice(self.players_sockets).get_name())] + [data["group_with_best_name"]])
             file.seek(0)
             file.write(json.dump(data))
             file.truncate()
             file.close()
         except:
-            e = sys.exc_info()[0]
-            nice_print(e)
             nice_print("Failed to log the results")
             
     def print_statistics(self):
@@ -298,17 +308,19 @@ class Server:
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.bind(('', 0)) #let the os choose a port for me
+            sock.settimeout(10)
             sock.listen(1)
             self.server_start_message(network_type)
             while True:
                 while (not self.players_sockets):
                     self.pre_game(network_type, sock)
-                self.game_time()
-                self.game_over()
-                self.log_statistics()
-                self.print_statistics()
+                if self.players_sockets:
+                    self.game_time()
+                    self.game_over()
+                    self.log_statistics()
+                    self.print_statistics()
+                    nice_print("Game over, sending out offer requests...")
                 self.close_all_connections()
-                nice_print("Game over, sending out offer requests...")
         except:
             nice_print("\n\nServer closed. GG G2G")
             try:

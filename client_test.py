@@ -8,8 +8,7 @@ import tty
 import struct
 import time
 
-# BroadcastlistenPort = 13117
-BroadcastlistenPort = 15183
+BroadcastlistenPort = 13117
 TeamName = "DNAce"
 formatMessageSize = 7
 magicCookie = b'\xfe\xed\xbe\xef'
@@ -64,14 +63,12 @@ def move_to_single_char_mode():
     termios.tcsetattr(sys.stdin,termios.TCSANOW,settings)
 
 def verify_msg_format(msg,mode):
-    print("msg len:" + str(len(msg)))
     if len(msg) == formatMessageSize:
+        cookie,typ,_ = struct.unpack('=IbH',msg)
         if mode == LittleEndian:
-            cookie,typ,_ = struct.unpack('<IbH',msg)
             if (cookie == int.from_bytes(magicCookie,"little")) and (typ==int.from_bytes(offerType,"little")) :
                 return True
         elif mode == BigEndian:
-            cookie,typ,_ = struct.unpack('>IbH',msg)
             if (cookie == int.from_bytes(magicCookie,"big")) and (typ==int.from_bytes(offerType,"big")) :
                 return True
     return False
@@ -87,13 +84,12 @@ def get_offers(ip):
         print("received message:" + (message.hex()) + "=" + str(message))
         if (verify_msg_format(message,LittleEndian)):
             serverTcpPort = message[5:]
-            print("received tcp port number:" + str(serverTcpPort))
             break
         elif (verify_msg_format(message,BigEndian)):
             _,_,serverTcpPort = struct.unpack('=IbH',message)
-            print("received tcp port number:" + str(serverTcpPort))
             break
     udpSocket.close()
+    print("received tcp port number:" + str(serverTcpPort))
     return (serverIp,serverTcpPort)
 
 class GameSession(asyncore.dispatcher):
