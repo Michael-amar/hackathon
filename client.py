@@ -9,19 +9,38 @@ import struct
 import time
 
 BroadcastlistenPort = 13117
-TeamName = "Team A"
+TeamName = "DNAce"
 messageSize = 7
 magicCookie = b'\xfe\xed\xbe\xef'
 offerType = b'\x02'
 udpRcvWindow = 2048 
 tcpRcvWindow = 2048
 
-def color_gen:
+def color_gen():
     while True:
-        yield "\033[12m"
+        print("\033[38;5;1m",end='') #red
+        sys.stdout.flush()
+        yield 
+        print("\033[38;5;208m",end='') #orange
+        sys.stdout.flush()
+        yield
+        print("\033[38;5;11m",end='') #yellow
+        sys.stdout.flush()
+        yield
+        print("\033[38;5;10m",end='') #green
+        sys.stdout.flush()
+        yield
+        print("\033[38;5;27m",end='') #blue
+        sys.stdout.flush()
+        yield
+        print("\033[38;5;129m",end='') #purple
+        sys.stdout.flush()
+        yield
+
+def reset_color():
+    print("\033[0m")
+
         
-
-
 def get_network_ip():
     while True:
         try:
@@ -59,8 +78,8 @@ class GameSession(asyncore.dispatcher):
     
     def __init__(self,serverIp,serverTcpPort):
         asyncore.dispatcher.__init__(self)
-        self.writable_calls=0
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.color = color_gen()
         # while True:
         try:
             self.connect((serverIp,serverTcpPort))
@@ -73,7 +92,7 @@ class GameSession(asyncore.dispatcher):
             print("failed to connect to server")
 
     def handle_connect(self):
-        print ("Connected to server")
+        pass
 
     def pressed_key(self):
         return select.select([sys.stdin,],[],[],0.0)[0]
@@ -82,13 +101,17 @@ class GameSession(asyncore.dispatcher):
         return sys.stdin.read(1)  
 
     def handle_close(self):
+        print("connection closed!")
         self.close()
     
     def handle_read(self):
+        reset_color()
         print (self.recv(tcpRcvWindow).decode())
+        self.
 
     def handle_write(self):
         c = self.get_char()
+        next(self.color)
         self.buffer += c.encode()
         sent = self.send(self.buffer)
         self.buffer = self.buffer[sent:]
@@ -99,16 +122,19 @@ class GameSession(asyncore.dispatcher):
     def start_game(self):
         asyncore.loop(timeout=0.001) 
 
+
+
 # serverIp,serverTcpPort = get_offers(get_network_ip())
-serverIp,serverTcpPort = get_offers("fake ip")
-time.sleep(5)
-gameSession = GameSession(serverIp,serverTcpPort)
-try:
-    old_settings = termios.tcgetattr(sys.stdin)
-    move_to_single_char_mode()
-    gameSession.start_game()
-finally:
-    termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
-    gameSession.close()
+while True:
+    serverIp,serverTcpPort = get_offers("fake ip")
+    time.sleep(2)
+    gameSession = GameSession(serverIp,serverTcpPort)
+    try:
+        old_settings = termios.tcgetattr(sys.stdin)
+        move_to_single_char_mode()
+        gameSession.start_game()
+    finally:
+        termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
+        gameSession.close()
 
 
