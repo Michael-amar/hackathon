@@ -16,6 +16,12 @@ offerType = b'\x02'
 udpRcvWindow = 2048 
 tcpRcvWindow = 2048
 
+def color_gen:
+    while True:
+        yield "\033[12m"
+        
+
+
 def get_network_ip():
     while True:
         try:
