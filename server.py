@@ -1,3 +1,4 @@
+import sys
 import json
 import time
 import random
@@ -10,7 +11,7 @@ from scapy.all import *
 
 
 # Global final variables
-TIMER_LENGTH = 10 #seconds
+TIMER_LENGTH = 10 #10 seconds
 MAGIC_COOKIE = 0xfeedbeef
 MESSAGE_TYPE = 0x2
 NUMBER_OF_TEAMS = 2
@@ -19,11 +20,50 @@ INTERVAL = 1
 BUFFER_SIZE = 4096
 # End of global final variables
 
+# temp values for test
+# TIMER_LENGTH = 10 #10 seconds
+# MAGIC_COOKIE = 0xefbeedfe
+# MESSAGE_TYPE = 0x2
+# NUMBER_OF_TEAMS = 2
+# UDP_PORT = 51231 #13117
+# INTERVAL = 1
+# BUFFER_SIZE = 4096
+
 # The players class, to keep track of their sockets and typed words
+
+def color_gen():
+    while True:
+        print("\033[38;5;1m",end='') #red
+        sys.stdout.flush()
+        yield 
+        print("\033[38;5;208m",end='') #orange
+        sys.stdout.flush()
+        yield
+        print("\033[38;5;11m",end='') #yellow
+        sys.stdout.flush()
+        yield
+        print("\033[38;5;10m",end='') #green
+        sys.stdout.flush()
+        yield
+        print("\033[38;5;27m",end='') #blue
+        sys.stdout.flush()
+        yield
+        print("\033[38;5;129m",end='') #purple
+        sys.stdout.flush()
+        yield
+
+color = color_gen()
+def nice_print(to_print):
+    next(color)
+    print(to_print)
+
+def reset_color():
+    print("\033[0m")
+
 class Player:
     
-    def __init__(self, sock: socket, name):
-        self.sock: socket = sock
+    def __init__(self, sock, name):
+        self.sock = sock
         self.typed = ""
         self.name = name
         self.team = random.randint(1, 2)
@@ -53,51 +93,62 @@ class Server:
         self.players_sockets = []
         self.connections_to_close = []
         self.should_stop_looking = False
+        self.should_stop_playing = False
 
     def server_start_message(self, ip):
         actual_ip = '127.0.0.1' if ip == '0.0.0.0' else ip
-        print(f"Server started, listerning on IP address {actual_ip}\n")
+        nice_print(f"Server started, listerning on IP address {actual_ip}\n")
 
     def get_game_start_message(self):
         welcome = "Welcome to Keyboard Spamming Battle Royale.\n"
         group_announcement = ""
-        for i in range(NUMBER_OF_TEAMS):
-            group_announcement += f"Group {i + 1}:\n==\n"
+        for i in range(1, NUMBER_OF_TEAMS + 1):
+            group_announcement += f"Group {i}:\n==\n"
             for p in self.players_sockets:
-                if p.get_team() == i + 1:
+                if p.get_team() == i:
                     group_announcement += p.get_name()
+                    group_announcement += "\n"
             group_announcement += "\n"
         game_start_accounement = "Start pressing keys on your keyboard as fast as you can!"
         return welcome + group_announcement + game_start_accounement
 
     def offer(self, network_type, tcp_sock):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
-        message = struct.pack('I B H', MAGIC_COOKIE, MESSAGE_TYPE, tcp_sock.getsockname()[1]) #getsockname[1] gets the port
-        
+        sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+        message = struct.pack('=IbH', MAGIC_COOKIE, MESSAGE_TYPE, tcp_sock.getsockname()[1]) #getsockname[1] gets the port
+        # nice_print(str(message))
         # Endlessly send a broadcast every @interval seconds
-        broadcast_ip = 'localhost' if network_type == '0.0.0.0' else str(ipaddress.ip_network(get_if_addr(network_type) + '/24').broadcast_address)
-
-        for i in range(round(TIMER_LENGTH/INTERVAL)):
-            sock.sendto(message, (broadcast_ip, UDP_PORT))
+        broadcast_ip = str(ipaddress.ip_network(network_type + '/24', False).broadcast_address)
+        nice_print("Broadcasting on " + broadcast_ip)
+        nice_print("Registration ends in:")
+        for i in range(1, TIMER_LENGTH + 1):
+            sock.sendto(message, ('localhost', UDP_PORT))
+            nice_print(str(TIMER_LENGTH - i))
             time.sleep(INTERVAL)
+        nice_print("\n")
         sock.close()
 
     def connect_with_specific_client(self, conn, addr):
         try:
             new_player_name = ""
-            if self.should_stop_looking:
-                while True:
-                    new_player_name += conn.recv(BUFFER_SIZE)
+            if not self.should_stop_looking:
+                should_exit = False
+                while not should_exit:
+                    new_player_name += (conn.recv(BUFFER_SIZE)).decode()
                     if not new_player_name:
                         break
-                    if not new_player_name.endswith("\n"):
+                    if "\n" not in new_player_name:
                         continue
-                    new_player_name = new_player_name[:-1] # remove the \n
-                    break
+                    new_player_name = new_player_name[:new_player_name.index("\n")] # remove the \n
+                    should_exit = True
                 new_player = Player(conn, new_player_name)
                 self.players_sockets.append(new_player) # the internet says append is threadsafe
+                nice_print(new_player_name + " joined the fight!")
         except:
+            e = sys.exc_info()[0]
+            nice_print(e)
             pass
+
 
     def connect_with_client(self, sock):
         while not self.should_stop_looking:
@@ -109,7 +160,7 @@ class Server:
 
     def game_over(self):
         if not self.players_sockets: #if no players connected
-            print (f"No players played in this round\n\n")
+            nice_print (f"No players played in this round\n\n")
             return
         scores = [0,0]
         for p in self.players_sockets:
@@ -129,18 +180,24 @@ class Server:
             if p.get_team() - 1 == winners:
                 winners_names += p.get_name() + "\n"
         
-        print (f"Game over!\n Group 1 typed in {scores[0]}. Group 2 typed in {scores[1]} characters.\n Group {winners + 1} wins!\n\n Congratulations to the winners:\n==\n{winners_names}")
+        nice_print (f"Game over!\n Group 1 typed in {scores[0]}. Group 2 typed in {scores[1]} characters.\n Group {winners + 1} wins!\n\n Congratulations to the winners:\n==\n{winners_names}")
 
     def close_all_connections(self):
         for conn in self.connections_to_close:
             try:
-                conn.get_sock().close()
+                conn.close()
+            except:
+                pass
+        for p in self.players_sockets:
+            try:
+                p.get_sock().close()
             except:
                 pass
         self.connections_to_close = []
         self.players_sockets = []
 
     def pre_game(self, network_type, sock):
+        self.should_stop_looking = False
         connect_with_client_thread = threading.Thread(target = self.connect_with_client, args =(sock,), daemon = True)
         connect_with_client_thread.start()
         self.offer(network_type, sock)
@@ -148,21 +205,39 @@ class Server:
 
     def client_thread(self, player, message):
         try:
-            player.get_sock().sendall(message)
-            conn, addr = player.get_sock().accept()
+            conn = player.get_sock()
+            conn.sendall(message.encode())
             typed = ""
-            while True:
-                typed = conn.recv(BUFFER_SIZE)
-                player.add_typed(typed)
+            while not self.should_stop_playing:
+                typed = (conn.recv(BUFFER_SIZE)).decode()
+                if not self.should_stop_playing:
+                    nice_print(f"received {typed}")
+                    player.add_typed(typed)
         except:
-            print (f"{player.get_name()} disconnected. Don't worry, their score will still count.")
+            e = sys.exc_info()[0]
+            nice_print(e)
+            nice_print (f"{player.get_name()} disconnected. Don't worry, their score will still count.")
+
+    def shuffle_teams(self):
+        random.shuffle(self.players_sockets)
+        i = 0
+        for p in self.players_sockets:
+            p.set_team((i % 2) + 1)
+            i += 1
 
     def game_time(self):
+        self.should_stop_playing = False
+        self.shuffle_teams()
         message = self.get_game_start_message()
         for player in self.players_sockets:
             player_thread = threading.Thread(target = self.client_thread, args = (player,message,), daemon = True)
             player_thread.start()
-        time.sleep(TIMER_LENGTH)
+        nice_print("The game started! It will end in:")
+        for i in range (1, TIMER_LENGTH + 1):
+            nice_print(TIMER_LENGTH - i)
+            time.sleep(1)
+        self.should_stop_playing = True
+
 
     def get_initial_json(self):
         typed = dict( (key, 0) for key in string.printable) # put 0 for each letter
@@ -170,7 +245,7 @@ class Server:
         group_with_best_name = ""
         data = {}
         data["typed"] = typed
-        data["high_score"] = high_score
+        # data["high_score"] = high_score
         data["group_with_best_name"] = group_with_best_name
         return data
 
@@ -178,27 +253,31 @@ class Server:
         if self.players_sockets == []:
             return
         typed = ""
-        high_score = -1
-        player_name_list = []
+        high_score = 0
         try:
             file = open('log.json', "a+")
-            data = json.load(file)
-            if data == {}:
+            data = {}
+            try:
+                data = json.load(file)
+            except:
                 data = self.get_initial_json()
             for player in self.players_sockets:
                 typed += player.get_typed()
-                high_score = max(high_score, len(player.get_typed()))
-                player_name_list += [player.get_name()]
+                # high_score = max(len(player.get_typed()), high_score)
+                print("score: " + high_score)
+            print("after first for")
             for c in typed:
                 data["typed"][c] += 1
-            data["high_score"] = max(high_score, data["high_score"])
-            data["group_with_best_name"] = random.choice(player_name_list + [data["group_with_best_name"]])
+            # data["high_score"] = max(high_score, data["high_score"])
+            data["group_with_best_name"] = random.choice([(random.choice(self.players_sockets).get_name())] + [data["group_with_best_name"]])
             file.seek(0)
             file.write(json.dump(data))
             file.truncate()
             file.close()
         except:
-            print("Failed to log the results")
+            e = sys.exc_info()[0]
+            nice_print(e)
+            nice_print("Failed to log the results")
             
     def print_statistics(self):
         try:
@@ -207,9 +286,9 @@ class Server:
             group_with_best_name = data["group_with_best_name"]
             high_score = data["high_score"]
             most_typed_char = max(data["typed"].items(), key=operator.itemgetter(1))[0]
-            print(f"Team with the best name: {group_with_best_name}")
-            print(f"Highest score ever: {high_score}")
-            print(f"Most typed character: {most_typed_char}")
+            nice_print(f"Team with the best name: {group_with_best_name}")
+            nice_print(f"Highest score ever for a single team: {high_score}")
+            nice_print(f"Most typed character: {most_typed_char}")
             file.close()
         except:
             pass
@@ -222,15 +301,16 @@ class Server:
             sock.listen(1)
             self.server_start_message(network_type)
             while True:
-                self.pre_game(network_type, sock)
+                while (not self.players_sockets):
+                    self.pre_game(network_type, sock)
                 self.game_time()
                 self.game_over()
                 self.log_statistics()
                 self.print_statistics()
                 self.close_all_connections()
-                print("Game over, sending out offer requests...")
+                nice_print("Game over, sending out offer requests...")
         except:
-            print("\n\nServer closed. Bye!")
+            nice_print("\n\nServer closed. GG G2G")
             try:
                 sock.close()
             except:
@@ -238,9 +318,10 @@ class Server:
 
 
 
-# TODO implement try catches
+# TODO fix the broadcast
 server = Server()
-server_type = input("Would you like to use the dev channel, test channel or localhost? (DEV/test/localhost)")
+server_type = input("Would you like to use the dev channel or test channel? (DEV/test)")
 
-server_ip = 'eth2' if server_type.lower() == 'test' else 'localhost' if server_type.lower() == 'localhost' else 'eth1'
+server_ip = 'eth2' if server_type.lower() == 'test' else 'eth1'
+# nice_print(get_if_addr(server_ip))
 server.main_loop(get_if_addr(server_ip))
