@@ -15,9 +15,11 @@ TIMER_LENGTH = 10 #10 seconds
 MAGIC_COOKIE = 0xfeedbeef
 MESSAGE_TYPE = 0x2
 NUMBER_OF_TEAMS = 2
-UDP_PORT = 13117
+UDP_PORT = 15183
+# UDP_PORT = 13117
 INTERVAL = 1
 BUFFER_SIZE = 4096
+SURPRISE = "\n  $$$$               $$$$\n $    $             $    $\n$    $              $     $\n$    $               $    $\n$    $$$$$$$$$$$$$$$$$    $\n$    $$$$$$$$$$$$$$$$$    $\n$    $$$$$$$$$$$$$$$$$$   $\n $   $$$$$$$$$$$$$$$$$$  $\n $   $$$$$$$$$$$$$$$$$$  $\n  $  $$$$$$$$$$$$$$$$$$ $\n   $ $$$$$$$$$$$$$$$$$ $\n    $$$$$$$$$$$$$$$$$$$\n     $$$$$$$$$$$$$$$$$\n      $$$$$$$$$$$$$$$\n       $$$$$$$$$$$$$\n        $$$$$$$$$$$\n         $$$$$$$$$\n          $$$$$$$\n           $$$$$\n       $$$$$$$$$$$$$"
 # End of global final variables
 
 # temp values for test
@@ -115,10 +117,11 @@ class Server:
     def offer(self, network_type, tcp_sock):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
         sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-        message = struct.pack('=IbH', MAGIC_COOKIE, MESSAGE_TYPE, tcp_sock.getsockname()[1]) #getsockname[1] gets the port
+        message = struct.pack('>IbH', MAGIC_COOKIE, MESSAGE_TYPE, tcp_sock.getsockname()[1]) #getsockname[1] gets the port
         # nice_print(str(message))
         # Endlessly send a broadcast every @interval seconds
         broadcast_ip = str(ipaddress.ip_network(network_type + '/16', False).broadcast_address)
+        # print(message)
         nice_print("Broadcasting on " + broadcast_ip)
         nice_print("Registration ends in:")
         for i in range(1, TIMER_LENGTH + 1):
@@ -187,7 +190,7 @@ class Server:
         for p in self.players_sockets:
             if p.get_team() - 1 == winners:
                 winners_names += p.get_name() + "\n"
-        win_message = f"Game over!\nGroup 1 typed in {scores[0]}. Group 2 typed in {scores[1]} characters.\n"
+        win_message = f"{SURPRISE}\n\nGame over!\nGroup 1 typed in {scores[0]}. Group 2 typed in {scores[1]} characters.\n"
         if winners == -1:
             win_message += "Its a tie!"
         else:
@@ -219,9 +222,6 @@ class Server:
     def client_thread(self, player, message):
         try:
             conn = player.get_sock()
-            conn.setblocking(0)
-            conn.recv(BUFFER_SIZE) #clear the buffer to stop cheaters!
-            conn.setblocking(1) 
             conn.sendall(message.encode())
             typed = ""
             while not self.should_stop_playing:
@@ -255,7 +255,7 @@ class Server:
 
     def get_initial_json(self):
         typed = dict( (key, 0) for key in string.printable) # put 0 for each letter
-        high_score = -1
+        high_score = 0
         group_with_best_name = ""
         data = {}
         data["typed"] = typed
@@ -269,37 +269,36 @@ class Server:
         typed = ""
         high_score = 0
         try:
-            file = open('log.json', "a+")
-            data = {}
-            try:
-                data = json.load(file)
-            except:
-                data = self.get_initial_json()
-            for player in self.players_sockets:
-                typed += player.get_typed()
-                high_score = max(len(player.get_typed()), high_score)
-            for c in typed:
-                data["typed"][c] += 1
-            data["high_score"] = max(high_score, data["high_score"])
-            data["group_with_best_name"] = random.choice([(random.choice(self.players_sockets).get_name())] + [data["group_with_best_name"]])
-            file.seek(0)
-            file.write(json.dump(data))
-            file.truncate()
-            file.close()
+            with open('log.json', "a+") as file:
+                try:
+                    data = json.load(file)
+                except:
+                    data = self.get_initial_json()
+                for player in self.players_sockets:
+                    typed += player.get_typed()
+                    high_score = max(len(player.get_typed()), high_score)
+                for c in typed:
+                    data["typed"][c] += 1
+                data["high_score"] = max(high_score, data["high_score"])
+                data["group_with_best_name"] = random.choice([(random.choice(self.players_sockets).get_name())] + [data["group_with_best_name"]])
+                file.seek(0)
+                json.dump(data, file)
+                file.truncate()
+                file.close()
         except:
             nice_print("Failed to log the results")
             
     def print_statistics(self):
         try:
-            file = open('log.json', "a+")
-            data = json.load(file)
-            group_with_best_name = data["group_with_best_name"]
-            high_score = data["high_score"]
-            most_typed_char = max(data["typed"].items(), key=operator.itemgetter(1))[0]
-            nice_print(f"Team with the best name: {group_with_best_name}")
-            nice_print(f"Highest score ever for a single team: {high_score}")
-            nice_print(f"Most typed character: {most_typed_char}")
-            file.close()
+            with open('log.json', "r") as file:
+                data = json.load(file)
+                group_with_best_name = data["group_with_best_name"]
+                high_score = data["high_score"]
+                most_typed_char = max(data["typed"].items(), key=operator.itemgetter(1))[0]
+                nice_print(f"Team with the best name: {group_with_best_name}")
+                nice_print(f"Highest score ever for a single team: {high_score}")
+                nice_print(f"Most typed character: {most_typed_char}")
+                file.close()
         except:
             pass
         
@@ -322,15 +321,13 @@ class Server:
                     nice_print("Game over, sending out offer requests...")
                 self.close_all_connections()
         except:
-            nice_print("\n\nServer closed. GG G2G")
+            nice_print("\n\nServer closed. gg g2g noobs")
             try:
                 sock.close()
             except:
                 pass
 
 
-
-# TODO fix the broadcast
 server = Server()
 server_type = input("Would you like to use the dev channel or test channel? (DEV/test)")
 

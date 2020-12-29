@@ -12,7 +12,8 @@ import time
 BroadcastlistenPort = 15183
 TeamName = "DNAce"
 formatMessageSize = 7
-magicCookie = b'\xfe\xed\xbe\xef'
+magicCookieBigEndian = b'\xfe\xed\xbe\xef'
+magicCookeLittleEndian = b'\xef\xbe\xed\xfe'
 offerType = b'\x02'
 udpRcvWindow = 2048 
 tcpRcvWindow = 2048
@@ -64,15 +65,14 @@ def move_to_single_char_mode():
     termios.tcsetattr(sys.stdin,termios.TCSANOW,settings)
 
 def verify_msg_format(msg,mode):
-    print("msg len:" + str(len(msg)))
     if len(msg) == formatMessageSize:
         if mode == LittleEndian:
-            cookie,typ,_ = struct.unpack('<IbH',msg)
-            if (cookie == int.from_bytes(magicCookie,"little")) and (typ==int.from_bytes(offerType,"little")) :
+            cookie,typ,_ = struct.unpack('<4sbH',msg)
+            if (cookie == magicCookeLittleEndian) and (typ==int.from_bytes(offerType,"little")) :
                 return True
         elif mode == BigEndian:
-            cookie,typ,_ = struct.unpack('>IbH',msg)
-            if (cookie == int.from_bytes(magicCookie,"big")) and (typ==int.from_bytes(offerType,"big")) :
+            cookie,typ,_ = struct.unpack('>4sbH',msg)
+            if (cookie == magicCookieBigEndian) and (typ==int.from_bytes(offerType,"big")) :
                 return True
     return False
 
@@ -84,14 +84,11 @@ def get_offers(ip):
     print("Client started, listening for offer requests...")
     while True: #wait for offers
         message, (serverIp,_) = udpSocket.recvfrom(udpRcvWindow) # check for problems with 2048
-        print("received message:" + (message.hex()) + "=" + str(message))
         if (verify_msg_format(message,LittleEndian)):
-            serverTcpPort = message[5:]
-            print("received tcp port number:" + str(serverTcpPort))
+            _,_,serverTcpPort = struct.unpack('<4sbH',message)
             break
         elif (verify_msg_format(message,BigEndian)):
-            _,_,serverTcpPort = struct.unpack('=IbH',message)
-            print("received tcp port number:" + str(serverTcpPort))
+            _,_,serverTcpPort = struct.unpack('>4sbH',message)
             break
     udpSocket.close()
     return (serverIp,serverTcpPort)
@@ -105,6 +102,7 @@ class GameSession(asyncore.dispatcher):
         # while True:
         try:
             self.connect((serverIp,serverTcpPort))
+            print("connected, game starts in few seconds...")
             self.send((TeamName+"\n").encode())
             self.buffer=bytes()
             # break
