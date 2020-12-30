@@ -19,7 +19,7 @@ NUMBER_OF_TEAMS = 2
 UDP_PORT = 15879 #13117
 INTERVAL = 1
 BUFFER_SIZE = 4096
-SURPRISE = "             ___________\n            '._==_==_=_.'\n            .-\:      /-.\n           | (|:.     |) |\n            '-|:.     |-'\n              \::.    /\n               '::. .'\n                 ) (\n               _.' '._\n              `*****`\n"
+SURPRISE = "\n             ___________\n            '._==_==_=_.'\n            .-\:      /-.\n           | (|:.     |) |\n            '-|:.     |-'\n              \::.    /\n               '::. .'\n                 ) (\n               _.' '._\n               `*****`"
 LOGO = " _____ _       _     _   _ \n|  ___(_) __ _| |__ | |_| |\n| |_  | |/ _` | '_ \| __| |\n|  _| | | (_| | | | | |_|_|\n|_|   |_|\__, |_| |_|\__(_)\n         |___/             "
 # End of global final variables
 
@@ -118,7 +118,7 @@ class Server:
                     group_announcement += "\n"
             group_announcement += "\n"
         game_start_accounement = "Start pressing keys on your keyboard as fast as you can!"
-        return LOGO + "\n\n" + group_announcement + game_start_accounement
+        return LOGO + "\n" + group_announcement + game_start_accounement
 
     def offer(self, network_type, tcp_sock):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
@@ -200,7 +200,7 @@ class Server:
         for p in self.players_sockets:
             if p.get_team() - 1 == winners:
                 winners_names += p.get_name() + "\n"
-        win_message = f"{SURPRISE}\n\nGame over!\nGroup 1 typed in {scores[0]}. Group 2 typed in {scores[1]} characters.\n"
+        win_message = f"{SURPRISE}\nGame over!\nGroup 1 typed in {scores[0]}. Group 2 typed in {scores[1]} characters.\n"
         if winners == -1:
             win_message += "Its a tie!"
         else:
@@ -258,7 +258,7 @@ class Server:
         for player in self.players_sockets:
             player_thread = threading.Thread(target = self.client_thread, args = (player,message,), daemon = True)
             player_thread.start()
-        nice_print(f"{LOGO}\nThe game started! It will end in:")
+        nice_print(f"{self.get_game_start_message()}\nThe game will end in:")
         for i in range (1, TIMER_LENGTH + 1):
             nice_print(TIMER_LENGTH - i)
             time.sleep(1)
