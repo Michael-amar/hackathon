@@ -9,8 +9,8 @@ import struct
 import time
 import ipaddress
 
-BroadcastlistenPort = 13117
-TeamName = "DNAce Servers"
+BroadcastlistenPort = 15879 #13117
+TeamName = "DNAce"
 formatMessageSize = 7
 magicCookieBigEndian = b'\xfe\xed\xbe\xef'
 magicCookeLittleEndian = b'\xef\xbe\xed\xfe'
@@ -140,6 +140,7 @@ class GameSession(asyncore.dispatcher):
     
     def handle_read(self):
         print(self.recv(tcpRcvWindow).decode())
+        sys.stdout.flush()
         reset_color()
 
     def handle_write(self):

@@ -16,11 +16,11 @@ TIMER_LENGTH = 10
 MAGIC_COOKIE = 0xfeedbeef
 MESSAGE_TYPE = 0x2
 NUMBER_OF_TEAMS = 2
-UDP_PORT = 13117
+UDP_PORT = 15879 #13117
 INTERVAL = 1
 BUFFER_SIZE = 4096
-SURPRISE = "\n  $$$$               $$$$\n $    $             $    $\n$    $              $     $\n$    $               $    $\n$    $$$$$$$$$$$$$$$$$    $\n$    $$$$$$$$$$$$$$$$$    $\n$    $$$$$$$$$$$$$$$$$    $\n $   $$$$$$$$$$$$$$$$$   $\n $   $$$$$$$$$$$$$$$$$   $\n  $  $$$$$$$$$$$$$$$$$  $\n   $ $$$$$$$$$$$$$$$$$ $\n    $$$$$$$$$$$$$$$$$$$\n     $$$$$$$$$$$$$$$$$\n      $$$$$$$$$$$$$$$\n       $$$$$$$$$$$$$\n        $$$$$$$$$$$\n         $$$$$$$$$\n          $$$$$$$\n           $$$$$\n       $$$$$$$$$$$$$"
-LOGO = "  ______ _       _     _   _ \n |  ____(_)     | |   | | | |\n | |__   _  __ _| |__ | |_| |\n |  __| | |/ _` | '_ \| __| |\n | |    | | (_| | | | | |_|_|\n |_|    |_|\__, |_| |_|\__(_)\n            __/ |            \n           |___/             "
+SURPRISE = "             ___________\n            '._==_==_=_.'\n            .-\:      /-.\n           | (|:.     |) |\n            '-|:.     |-'\n              \::.    /\n               '::. .'\n                 ) (\n               _.' '._\n              `*****`\n"
+LOGO = " _____ _       _     _   _ \n|  ___(_) __ _| |__ | |_| |\n| |_  | |/ _` | '_ \| __| |\n|  _| | | (_| | | | | |_|_|\n|_|   |_|\__, |_| |_|\__(_)\n         |___/             "
 # End of global final variables
 
 # temp values for test
@@ -33,6 +33,8 @@ LOGO = "  ______ _       _     _   _ \n |  ____(_)     | |   | | | |\n | |__   _
 # BUFFER_SIZE = 4096
 
 # The players class, to keep track of their sockets and typed words
+
+server_message_color = "\033[38;5;51m"
 
 def color_gen():
     while True:
@@ -143,8 +145,8 @@ class Server:
                 should_exit = False
                 while not should_exit:
                     new_player_name += (conn.recv(BUFFER_SIZE)).decode()
-                    if not new_player_name:
-                        break
+                    # if not new_player_name:
+                    #     break
                     if "\n" not in new_player_name:
                         continue
                     new_player_name = new_player_name[:new_player_name.index("\n")] # remove the \n
@@ -204,7 +206,7 @@ class Server:
         else:
             win_message += f"Group {winners + 1} wins!\n\nGG all, winner winner chicken dinner for:\n==\n{winners_names}"
         nice_print (win_message)
-        self.send_win(win_message)
+        self.send_win(server_message_color + win_message)
 
     def close_all_connections(self):
         for conn in self.connections_to_close:
@@ -231,7 +233,7 @@ class Server:
     def client_thread(self, player, message):
         try:
             conn = player.get_sock()
-            conn.sendall(message.encode())
+            conn.sendall((server_message_color + message).encode())
             typed = ""
             color_group = "\033[38;5;1m" if player.get_team() == 1 else "\033[38;5;27m"
             while not self.should_stop_playing:
