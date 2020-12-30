@@ -148,7 +148,10 @@ class Server:
                     # if not new_player_name:
                     #     break
                     if "\n" not in new_player_name:
-                        continue
+                        if not new_player_name == "": 
+                            continue
+                        else:
+                            time.sleep(0.15)
                     new_player_name = new_player_name[:new_player_name.index("\n")] # remove the \n
                     should_exit = True
             if not self.should_stop_looking:
@@ -158,7 +161,10 @@ class Server:
             else:
                 conn.close()
         except:
-            pass
+            try:
+                conn.close()
+            except:
+                pass
 
 
     def connect_with_client(self, sock):
@@ -238,9 +244,12 @@ class Server:
             color_group = "\033[38;5;1m" if player.get_team() == 1 else "\033[38;5;27m"
             while not self.should_stop_playing:
                 typed = (conn.recv(BUFFER_SIZE)).decode()
-                if not self.should_stop_playing and not typed == "":
-                    nice_print(f"{color_group}received {typed} from {player.get_name()}")
-                    player.add_typed(typed)
+                if not self.should_stop_playing:
+                    if not typed == "":
+                        nice_print(f"{color_group}received {typed} from {player.get_name()}")
+                        player.add_typed(typed)
+                    else:
+                        time.sleep(0.15)
         except:
             nice_print (f"{player.get_name()} disconnected. Don't worry, their score will still count.")
 
