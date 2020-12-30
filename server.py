@@ -16,7 +16,7 @@ TIMER_LENGTH = 10
 MAGIC_COOKIE = 0xfeedbeef
 MESSAGE_TYPE = 0x2
 NUMBER_OF_TEAMS = 2
-UDP_PORT = 15879 #13117
+UDP_PORT = 13117
 INTERVAL = 1
 BUFFER_SIZE = 4096
 SURPRISE = "\n             ___________\n            '._==_==_=_.'\n            .-\:      /-.\n           | (|:.     |) |\n            '-|:.     |-'\n              \::.    /\n               '::. .'\n                 ) (\n               _.' '._\n               `*****`"

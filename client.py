@@ -9,7 +9,7 @@ import struct
 import time
 import ipaddress
 
-BroadcastlistenPort = 15879 #13117
+BroadcastlistenPort = 13117
 TeamName = "DNAce"
 formatMessageSize = 7
 magicCookieBigEndian = b'\xfe\xed\xbe\xef'
