@@ -175,3 +175,4 @@ while True:
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
             gameSession.close()
             reset_color()
+            print("Server,disconnected, listening for offer requests...")
