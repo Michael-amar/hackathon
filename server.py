@@ -12,15 +12,14 @@ from scapy.all import *
 
 
 # Global final variables
-TIMER_LENGTH = 10 #10 seconds
+TIMER_LENGTH = 10
 MAGIC_COOKIE = 0xfeedbeef
 MESSAGE_TYPE = 0x2
 NUMBER_OF_TEAMS = 2
-UDP_PORT = 15189
-# UDP_PORT = 13117
+UDP_PORT = 15555 #13117
 INTERVAL = 1
 BUFFER_SIZE = 4096
-SURPRISE = "\n  $$$$               $$$$\n $    $             $    $\n$    $              $     $\n$    $               $    $\n$    $$$$$$$$$$$$$$$$$    $\n$    $$$$$$$$$$$$$$$$$    $\n$    $$$$$$$$$$$$$$$$$$   $\n $   $$$$$$$$$$$$$$$$$$  $\n $   $$$$$$$$$$$$$$$$$$  $\n  $  $$$$$$$$$$$$$$$$$$ $\n   $ $$$$$$$$$$$$$$$$$ $\n    $$$$$$$$$$$$$$$$$$$\n     $$$$$$$$$$$$$$$$$\n      $$$$$$$$$$$$$$$\n       $$$$$$$$$$$$$\n        $$$$$$$$$$$\n         $$$$$$$$$\n          $$$$$$$\n           $$$$$\n       $$$$$$$$$$$$$"
+SURPRISE = "\n  $$$$               $$$$\n $    $             $    $\n$    $              $     $\n$    $               $    $\n$    $$$$$$$$$$$$$$$$$    $\n$    $$$$$$$$$$$$$$$$$    $\n$    $$$$$$$$$$$$$$$$$    $\n $   $$$$$$$$$$$$$$$$$   $\n $   $$$$$$$$$$$$$$$$$   $\n  $  $$$$$$$$$$$$$$$$$  $\n   $ $$$$$$$$$$$$$$$$$ $\n    $$$$$$$$$$$$$$$$$$$\n     $$$$$$$$$$$$$$$$$\n      $$$$$$$$$$$$$$$\n       $$$$$$$$$$$$$\n        $$$$$$$$$$$\n         $$$$$$$$$\n          $$$$$$$\n           $$$$$\n       $$$$$$$$$$$$$"
 LOGO = "  ______ _       _     _   _ \n |  ____(_)     | |   | | | |\n | |__   _  __ _| |__ | |_| |\n |  __| | |/ _` | '_ \| __| |\n | |    | | (_| | | | | |_|_|\n |_|    |_|\__, |_| |_|\__(_)\n            __/ |            \n           |___/             "
 # End of global final variables
 
@@ -58,7 +57,10 @@ def color_gen():
 
 color = color_gen()
 def nice_print(to_print):
-    next(color)
+    try:
+        next(color)
+    except:
+        pass
     print(to_print)
 
 def reset_color():
@@ -114,7 +116,7 @@ class Server:
                     group_announcement += "\n"
             group_announcement += "\n"
         game_start_accounement = "Start pressing keys on your keyboard as fast as you can!"
-        return "\033[38;5;27m" + LOGO + "\n\n\033[38;5;208m" + group_announcement + game_start_accounement
+        return LOGO + "\n\n" + group_announcement + game_start_accounement
 
     def offer(self, network_type, tcp_sock):
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM) # UDP
@@ -127,8 +129,8 @@ class Server:
         nice_print("Broadcasting on " + broadcast_ip)
         nice_print("Registration ends in:")
         for i in range(1, TIMER_LENGTH + 1):
-            # sock.sendto(message, (broadcast_ip, UDP_PORT))
-            sock.sendto(message, ('localhost', UDP_PORT))
+            sock.sendto(message, (broadcast_ip, UDP_PORT))
+            # sock.sendto(message, ('localhost', UDP_PORT))
             nice_print(str(TIMER_LENGTH - i))
             time.sleep(INTERVAL)
         nice_print("\n")
@@ -147,11 +149,14 @@ class Server:
                         continue
                     new_player_name = new_player_name[:new_player_name.index("\n")] # remove the \n
                     should_exit = True
+            if not self.should_stop_looking:
                 new_player = Player(conn, new_player_name)
                 self.players_sockets.append(new_player) # the internet says append is threadsafe
                 nice_print(new_player_name + " joined the fight!")
+            else:
+                conn.close()
         except:
-           pass
+            pass
 
 
     def connect_with_client(self, sock):
@@ -193,7 +198,7 @@ class Server:
         for p in self.players_sockets:
             if p.get_team() - 1 == winners:
                 winners_names += p.get_name() + "\n"
-        win_message = f"\033[38;5;11m{SURPRISE}\n\033[38;5;27m\nGame over!\nGroup 1 typed in {scores[0]}. Group 2 typed in {scores[1]} characters.\n"
+        win_message = f"{SURPRISE}\n\nGame over!\nGroup 1 typed in {scores[0]}. Group 2 typed in {scores[1]} characters.\n"
         if winners == -1:
             win_message += "Its a tie!"
         else:
@@ -219,6 +224,7 @@ class Server:
         self.should_stop_looking = False
         connect_with_client_thread = threading.Thread(target = self.connect_with_client, args =(sock,), daemon = True)
         connect_with_client_thread.start()
+        time.sleep(0.01)
         self.offer(network_type, sock)
         self.should_stop_looking = True
 
@@ -312,10 +318,10 @@ class Server:
                     self.game_over()
                     self.log_statistics()
                     self.print_statistics()
-                    nice_print("Game over, sending out offer requests...")
+                    nice_print("GG EZ NOOBS, sending out offer requests...")
                 self.close_all_connections()
         except:
-            nice_print("\n\nServer closed. gg g2g noobs")
+            nice_print("\n\gg ez noobs")
             try:
                 self.close_all_connections()
                 sock.close()

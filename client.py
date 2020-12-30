@@ -7,11 +7,9 @@ import termios
 import tty
 import struct
 import time
-import threading 
-import inspect
+import ipaddress
 
-# BroadcastlistenPort = 13117
-BroadcastlistenPort = 15189
+BroadcastlistenPort = 13117
 TeamName = "DNAce Servers"
 formatMessageSize = 7
 magicCookieBigEndian = b'\xfe\xed\xbe\xef'
@@ -86,7 +84,7 @@ def verify_msg_format(msg,mode):
 def get_offers(ip):
     udpSocket = socket.socket(socket.AF_INET,socket.SOCK_DGRAM) #check for problems with AF_INET
     udpSocket.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1) #important line!!! allows to reuse the address
-    udpSocket.bind((ip,BroadcastlistenPort)) 
+    udpSocket.bind((str(ipaddress.ip_network(ip + '/16', False).broadcast_address),BroadcastlistenPort))
     print("Client started, listening for offer requests...")
     while True: #wait for offers
         message, (serverIp,_) = udpSocket.recvfrom(udpRcvWindow) 
@@ -111,22 +109,22 @@ class GameSession(asyncore.dispatcher):
                 self.connect((serverIp,serverTcpPort))
                 break
             except:
-                failed_to_connect = true
+                failed_to_connect = True
+                self.socket.close()
+                e = sys.exc_info()[0]
+                print(e)
+                print("failed to connect to server")
+                raise
         if not failed_to_connect:
-            print("connected, game starts in few seconds..." + str(serverTcpPort))
+            print("connected, game starts in few seconds...")
             try:
                 self.send((TeamName+"\n").encode())
             except:
                 self.socket.close()
                 raise
             self.buffer=bytes()
-            self.input_buffer = bytes()  
-        else:
-            self.socket.close()
-            e = sys.exc_info()[0]
-            print(e)
-            print("failed to connect to server")
-            raise
+            self.input_buffer = bytes() 
+
 
     def handle_connect(self):
         move_to_single_char_mode()
@@ -141,7 +139,6 @@ class GameSession(asyncore.dispatcher):
         self.close()
     
     def handle_read(self):
-        recieved_msg_color()
         print(self.recv(tcpRcvWindow).decode())
         reset_color()
 
@@ -158,10 +155,11 @@ class GameSession(asyncore.dispatcher):
     def start_game(self):
         asyncore.loop(timeout=0.01,use_poll=True,count=2000)
 
-disable_echo()
 old_settings = termios.tcgetattr(sys.stdin)
-serverIp,serverTcpPort = get_offers(get_network_ip())
+ip = get_network_ip()
 while True:
+    serverIp,serverTcpPort = get_offers(ip)
+    disable_echo()
     try:
         gameSession = GameSession(serverIp,serverTcpPort)
         failed_to_connect = False
@@ -175,4 +173,4 @@ while True:
             termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
             gameSession.close()
             reset_color()
-            print("Server,disconnected, listening for offer requests...")
+            print("Server disconnected, listening for offer requests...")
