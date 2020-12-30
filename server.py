@@ -233,10 +233,10 @@ class Server:
             conn = player.get_sock()
             conn.sendall(message.encode())
             typed = ""
+            color_group = "\033[38;5;1m" if player.get_team() == 1 else "\033[38;5;27m"
             while not self.should_stop_playing:
                 typed = (conn.recv(BUFFER_SIZE)).decode()
                 if not self.should_stop_playing and not typed == "":
-                    color_group = "\033[38;5;1m" if player.get_team() == 1 else "\033[38;5;27m"
                     nice_print(f"{color_group}received {typed} from {player.get_name()}")
                     player.add_typed(typed)
         except:
