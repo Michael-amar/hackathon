@@ -236,7 +236,8 @@ class Server:
             while not self.should_stop_playing:
                 typed = (conn.recv(BUFFER_SIZE)).decode()
                 if not self.should_stop_playing and not typed == "":
-                    nice_print(f"received {typed} from {player.get_name()}")
+                    color_group = "\033[38;5;1m" if player.get_team() == 1 else "\033[38;5;27m"
+                    nice_print(f"{color_group}received {typed} from {player.get_name()}")
                     player.add_typed(typed)
         except:
             nice_print (f"{player.get_name()} disconnected. Don't worry, their score will still count.")
