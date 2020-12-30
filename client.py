@@ -157,9 +157,9 @@ class GameSession(asyncore.dispatcher):
 
 old_settings = termios.tcgetattr(sys.stdin)
 ip = get_network_ip()
+disable_echo()
 while True:
     serverIp,serverTcpPort = get_offers(ip)
-    disable_echo()
     try:
         gameSession = GameSession(serverIp,serverTcpPort)
         failed_to_connect = False
@@ -174,3 +174,4 @@ while True:
             gameSession.close()
             reset_color()
             print("Server disconnected, listening for offer requests...")
+            disable_echo()
