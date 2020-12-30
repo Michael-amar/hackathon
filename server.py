@@ -151,7 +151,7 @@ class Server:
                 self.players_sockets.append(new_player) # the internet says append is threadsafe
                 nice_print(new_player_name + " joined the fight!")
         except:
-            pass
+           pass
 
 
     def connect_with_client(self, sock):
