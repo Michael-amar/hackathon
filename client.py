@@ -9,7 +9,7 @@ import struct
 import time
 import ipaddress
 
-BroadcastlistenPort = 13117
+BroadcastlistenPort = 13119
 TeamName = "DNAce"
 formatMessageSize = 7
 magicCookieBigEndian = b'\xfe\xed\xbe\xef'
@@ -45,7 +45,7 @@ def reset_color():
     print("\033[0m",end="\n")
     sys.stdout.flush()
 
-def get_network_ip():
+def choose_network():
     while True:
         try:
             network = int (input("press 1 for eth1 or 2 for eth2:"))
@@ -58,6 +58,7 @@ def get_network_ip():
             print("invalid input")
     return network
 
+#allow read of single char instead of whole line
 def move_to_single_char_mode():
     tty.setcbreak(sys.stdin.fileno())
     settings = termios.tcgetattr(sys.stdin)
@@ -83,7 +84,6 @@ def verify_msg_format(msg,mode):
 
 def get_offers(ip):
     udpSocket = socket.socket(socket.AF_INET,socket.SOCK_DGRAM) #check for problems with AF_INET
-    udpSocket.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1) #important line!!! allows to reuse the address
     udpSocket.bind((str(ipaddress.ip_network(ip + '/16', False).broadcast_address),BroadcastlistenPort))
     print("Client started, listening for offer requests...")
     while True: #wait for offers
@@ -103,8 +103,9 @@ class GameSession(asyncore.dispatcher):
         asyncore.dispatcher.__init__(self)
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.color = color_gen()
+        self.buffer=bytes()
         failed_to_connect=False
-        for i in range(0,3):
+        for i in range(0,3):    #try to connect 3 times or abort
             try:
                 self.connect((serverIp,serverTcpPort))
                 break
@@ -122,13 +123,11 @@ class GameSession(asyncore.dispatcher):
             except:
                 self.socket.close()
                 raise
-            self.buffer=bytes()
-            self.input_buffer = bytes() 
-
-
+            
     def handle_connect(self):
         move_to_single_char_mode()
 
+    #return true if there is input in stdin
     def pressed_key(self):
         return select.select([sys.stdin,],[],[],0.0)[0]
 
@@ -156,9 +155,9 @@ class GameSession(asyncore.dispatcher):
     def start_game(self):
         asyncore.loop(timeout=0.01,use_poll=True,count=2000)
 
-old_settings = termios.tcgetattr(sys.stdin)
-ip = get_network_ip()
+ip = choose_network()
 disable_echo()
+old_settings = termios.tcgetattr(sys.stdin)
 while True:
     serverIp,serverTcpPort = get_offers(ip)
     try:
@@ -175,4 +174,3 @@ while True:
             gameSession.close()
             reset_color()
             print("Server disconnected, listening for offer requests...")
-            disable_echo()

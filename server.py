@@ -16,7 +16,7 @@ TIMER_LENGTH = 10
 MAGIC_COOKIE = 0xfeedbeef
 MESSAGE_TYPE = 0x2
 NUMBER_OF_TEAMS = 2
-UDP_PORT = 13117
+UDP_PORT = 13119
 INTERVAL = 1
 BUFFER_SIZE = 4096
 TINY_INTERVAL = 0.15
@@ -136,7 +136,7 @@ class Server:
         message = struct.pack('>IbH', MAGIC_COOKIE, MESSAGE_TYPE, tcp_sock.getsockname()[1]) #getsockname[1] gets the port
         
         # get the broadcast ip from the ip+mask
-        broadcast_ip = str(ipaddress.ip_network(network_type + '/' + MASK, False).broadcast_address)
+        broadcast_ip = str(ipaddress.ip_network(network_type + '/' + str(MASK), False).broadcast_address)
         
         nice_print("Broadcasting on " + broadcast_ip)
         nice_print("Registration ends in:")
