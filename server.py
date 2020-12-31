@@ -20,6 +20,7 @@ UDP_PORT = 13117
 INTERVAL = 1
 BUFFER_SIZE = 4096
 TINY_INTERVAL = 0.15
+MASK = 16
 SURPRISE = "\n             ___________\n            '._==_==_=_.'\n            .-\:      /-.\n           | (|:.     |) |\n            '-|:.     |-'\n              \::.    /\n               '::. .'\n                 ) (\n               _.' '._\n               `*****`"
 LOGO = " _____ _       _     _   _ \n|  ___(_) __ _| |__ | |_| |\n| |_  | |/ _` | '_ \| __| |\n|  _| | | (_| | | | | |_|_|\n|_|   |_|\__, |_| |_|\__(_)\n         |___/             "
 # End of global final variables
@@ -135,7 +136,7 @@ class Server:
         message = struct.pack('>IbH', MAGIC_COOKIE, MESSAGE_TYPE, tcp_sock.getsockname()[1]) #getsockname[1] gets the port
         
         # get the broadcast ip from the ip+mask
-        broadcast_ip = str(ipaddress.ip_network(network_type + '/16', False).broadcast_address)
+        broadcast_ip = str(ipaddress.ip_network(network_type + '/' + MASK, False).broadcast_address)
         
         nice_print("Broadcasting on " + broadcast_ip)
         nice_print("Registration ends in:")
