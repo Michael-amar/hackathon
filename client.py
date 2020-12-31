@@ -155,22 +155,28 @@ class GameSession(asyncore.dispatcher):
     def start_game(self):
         asyncore.loop(timeout=0.01,use_poll=True,count=2000)
 
-ip = choose_network()
-disable_echo()
-old_settings = termios.tcgetattr(sys.stdin)
-while True:
-    serverIp,serverTcpPort = get_offers(ip)
-    try:
-        gameSession = GameSession(serverIp,serverTcpPort)
-        failed_to_connect = False
-    except:
-        print("failed to connect to server")
-        failed_to_connect = True
-    if not failed_to_connect:
+
+
+def main():
+    ip = choose_network()
+    disable_echo() #we dont allow type to stdin until game starts
+    old_settings = termios.tcgetattr(sys.stdin) #backup stdin setting 
+    while True:
+        serverIp,serverTcpPort = get_offers(ip) #get broadcast offfers from servers
         try:
-            gameSession.start_game()
-        finally:
-            termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings)
-            gameSession.close()
-            reset_color()
-            print("Server disconnected, listening for offer requests...")
+            gameSession = GameSession(serverIp,serverTcpPort) #try to initialize connection to server
+            failed_to_connect = False
+        except:
+            print("failed to connect to server")
+            failed_to_connect = True
+        if not failed_to_connect:
+            try:
+                gameSession.start_game() #start listening and sending messages to server
+            finally:
+                termios.tcsetattr(sys.stdin, termios.TCSADRAIN, old_settings) #restore old stdin settings
+                gameSession.close()
+                reset_color()
+                print("Server disconnected, listening for offer requests...")
+
+if __name__ == "__main__":
+    main()
